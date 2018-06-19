@@ -17,10 +17,57 @@
 
 package fluence.multiaddr
 
-class Multiaddr {
+import scala.annotation.tailrec
 
-}
+case class Multiaddr private(protocols: List[(Protocol, Option[String])])
 
 object Multiaddr {
-  def fromNodeAddress(addr: String, transport: String): Either[Throwable, Multiaddr] = ???
+
+  def apply(addr: String): Either[Throwable, Multiaddr] = {
+    if (!addr.startsWith("/")) {
+      Left(new IllegalArgumentException("Address must be started with '/'."))
+    } else {
+      val parts = addr.stripPrefix("/").stripSuffix("/").split("/").toList
+
+      if (parts.isEmpty) {
+        Left(new IllegalArgumentException("Address must be non-empty."))
+      } else {
+
+        parse(parts).map(protocols ⇒ new Multiaddr(protocols))
+      }
+    }
+  }
+
+  private def parse(list: List[String]): Either[Throwable, List[(Protocol, Option[String])]] = {
+
+    @tailrec
+    def parseRec(
+      list: List[String],
+      res: Either[Throwable, List[(Protocol, Option[String])]]
+    ): Either[Throwable, List[(Protocol, Option[String])]] = {
+      list match {
+        case Nil ⇒ res
+        case head :: tail ⇒
+          val protocolOp = Protocol.withNameOption(head)
+
+          protocolOp match {
+            case None ⇒
+              Left(new IllegalArgumentException(s"There is no protocol with name '$head'."))
+            case Some(protocol) ⇒
+              protocol.size match {
+                case 0 ⇒ parseRec(tail, res.map(els ⇒ els :+ (protocol, None)))
+                case _ ⇒
+                  tail match {
+                    case Nil ⇒
+                      Left(new IllegalArgumentException(s"There is no parameter for protocol with name '$head'."))
+                    case innerHead :: innerTail ⇒
+                      parseRec(innerTail, res.map(els ⇒ els :+ (protocol, Some(innerHead))))
+                  }
+              }
+          }
+      }
+    }
+
+    parseRec(list, Right(List.empty))
+  }
 }
