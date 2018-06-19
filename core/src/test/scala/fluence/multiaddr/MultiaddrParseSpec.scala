@@ -31,13 +31,19 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
     }
 
     "parse correct multiaddresses right" in {
-      val m1 = Multiaddr("/ip4/127.0.0.1/tcp/123")
-      m1.isRight shouldBe true
-      m1.right.get.protocols shouldBe List((IP4, Some("127.0.0.1")), (TCP, Some("123")))
+      val addr1 = "/ip4/127.0.0.1/tcp/123"
+      val m1Either = Multiaddr(addr1)
+      m1Either.isRight shouldBe true
+      val m1 = m1Either.right.get
+      m1.protocolsWithParameters shouldBe List((IP4, Some("127.0.0.1")), (TCP, Some("123")))
+      m1.stringAddress shouldBe addr1
 
-      val m2 = Multiaddr("/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https")
-      m2.isRight shouldBe true
-      m2.right.get.protocols shouldBe List((IP6, Some("2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095")), (UDP, Some("5000")), (HTTPS, None))
+      val addr2 = "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https"
+      val m2Either = Multiaddr(addr2)
+      m2Either.isRight shouldBe true
+      val m2 = m2Either.right.get
+      m2.protocolsWithParameters shouldBe List((IP6, Some("2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095")), (UDP, Some("5000")), (HTTPS, None))
+      m2.stringAddress shouldBe addr2
     }
 
     "throw exception if there is no protocol" in {
@@ -50,6 +56,38 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
       val m = Multiaddr("/ip4/127.0.0.1/tcp/")
       m.isLeft shouldBe true
       m.left.get.getMessage shouldBe "There is no parameter for protocol with name 'tcp'."
+    }
+
+    "encapsulate and decapsulate correct multiaddr" in {
+      val addr1 = "/ip4/127.0.0.1/tcp/123"
+      val m1Either = Multiaddr(addr1)
+      m1Either.isRight shouldBe true
+      val m1 = m1Either.right.get
+
+      val addr2 = "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https"
+      val m2Either = Multiaddr(addr2)
+      m2Either.isRight shouldBe true
+      val m2 = m2Either.right.get
+
+      val m3Either = m1.encapsulate(m2)
+      m3Either.isRight shouldBe true
+      val m3 = m3Either.right.get
+
+      val result = List((IP4, Some("127.0.0.1")), (TCP, Some("123")), (IP6, Some("2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095")), (UDP, Some("5000")), (HTTPS, None))
+      m3.protocolsWithParameters shouldBe result
+      m3.stringAddress shouldBe (addr1 + addr2)
+
+      m3.decapsulate(m2).right.get.stringAddress shouldBe addr1
+    }
+
+    "decapsulate correct multiaddr" in {
+      val addr1 = "/ip4/127.0.0.1/udp/1234/sctp/5678"
+      val m1Either = Multiaddr(addr1)
+      m1Either.isRight shouldBe true
+      val m1 = m1Either.right.get
+
+      val decapsulated = m1.decapsulate(Multiaddr("/sctp/5678").right.get).right.get
+      decapsulated.stringAddress shouldBe "/ip4/127.0.0.1/udp/1234"
     }
   }
 }

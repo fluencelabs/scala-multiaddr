@@ -17,57 +17,37 @@
 
 package fluence.multiaddr
 
-import scala.annotation.tailrec
+case class Multiaddr private(stringAddress: String, protocolsWithParameters: List[(Protocol, Option[String])]) {
+  override def toString: String = stringAddress
 
-case class Multiaddr private(protocols: List[(Protocol, Option[String])])
+  /**
+    * Wraps a given Multiaddr, returning the resulting joined Multiaddr.
+    *
+    * @return new joined Multiaddr
+    */
+  def encapsulate(addr: Multiaddr): Either[Throwable, Multiaddr] = {
+    Multiaddr(stringAddress + addr.toString)
+  }
+
+  /**
+    * Decapsulate unwraps Multiaddr up until the given Multiaddr is found.
+    *
+    * @return decapsulated Multiaddr
+    */
+  def decapsulate(addr: Multiaddr): Either[Throwable, Multiaddr] = {
+    val strAddr = addr.toString
+    val lastIndex = stringAddress.lastIndexOf(strAddr)
+    if (lastIndex < 0)
+      Right(this.copy())
+    else
+      Multiaddr(stringAddress.slice(0, lastIndex))
+  }
+
+}
 
 object Multiaddr {
 
-  def apply(addr: String): Either[Throwable, Multiaddr] = {
-    if (!addr.startsWith("/")) {
-      Left(new IllegalArgumentException("Address must be started with '/'."))
-    } else {
-      val parts = addr.stripPrefix("/").stripSuffix("/").split("/").toList
-
-      if (parts.isEmpty) {
-        Left(new IllegalArgumentException("Address must be non-empty."))
-      } else {
-
-        parse(parts).map(protocols ⇒ new Multiaddr(protocols))
-      }
-    }
-  }
-
-  private def parse(list: List[String]): Either[Throwable, List[(Protocol, Option[String])]] = {
-
-    @tailrec
-    def parseRec(
-      list: List[String],
-      res: Either[Throwable, List[(Protocol, Option[String])]]
-    ): Either[Throwable, List[(Protocol, Option[String])]] = {
-      list match {
-        case Nil ⇒ res
-        case head :: tail ⇒
-          val protocolOp = Protocol.withNameOption(head)
-
-          protocolOp match {
-            case None ⇒
-              Left(new IllegalArgumentException(s"There is no protocol with name '$head'."))
-            case Some(protocol) ⇒
-              protocol.size match {
-                case 0 ⇒ parseRec(tail, res.map(els ⇒ els :+ (protocol, None)))
-                case _ ⇒
-                  tail match {
-                    case Nil ⇒
-                      Left(new IllegalArgumentException(s"There is no parameter for protocol with name '$head'."))
-                    case innerHead :: innerTail ⇒
-                      parseRec(innerTail, res.map(els ⇒ els :+ (protocol, Some(innerHead))))
-                  }
-              }
-          }
-      }
-    }
-
-    parseRec(list, Right(List.empty))
+  def apply(addr: String): Either[Throwable, Multiaddr] = MultiaddrParser.parse(addr).map {
+    case (trimmed, protocols) => new Multiaddr(trimmed, protocols)
   }
 }
