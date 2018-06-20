@@ -17,6 +17,7 @@
 
 package fluence.multiaddr
 
+import fluence.multiaddr.Multiaddr.ErrorMessage
 import org.scalatest.{Matchers, WordSpec}
 
 class MultiaddrParseSpec extends WordSpec with Matchers {
@@ -66,14 +67,10 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
 
     "encapsulate and decapsulate correct multiaddr" in {
       val addr1 = "/ip4/127.0.0.1/tcp/123"
-      val m1Either = Multiaddr(addr1)
-      m1Either.isRight shouldBe true
-      val m1 = m1Either.right.get
+      val m1 = Multiaddr.unsafe(addr1)
 
       val addr2 = "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https"
-      val m2Either = Multiaddr(addr2)
-      m2Either.isRight shouldBe true
-      val m2 = m2Either.right.get
+      val m2 = Multiaddr.unsafe(addr2)
 
       val m3Either = m1.encapsulate(m2)
       m3Either.isRight shouldBe true
@@ -94,9 +91,7 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
 
     "decapsulate correct multiaddr" in {
       val addr1 = "/ip4/127.0.0.1/udp/1234/sctp/5678"
-      val m1Either = Multiaddr(addr1)
-      m1Either.isRight shouldBe true
-      val m1 = m1Either.right.get
+      val m1 = Multiaddr.unsafe(addr1)
 
       val decapsulated = m1.decapsulate(Multiaddr("/sctp/5678").right.get).right.get
       decapsulated.address shouldBe "/ip4/127.0.0.1/udp/1234"

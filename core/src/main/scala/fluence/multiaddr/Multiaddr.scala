@@ -20,25 +20,23 @@ package fluence.multiaddr
 import fluence.multiaddr.Multiaddr.ErrorMessage
 
 case class Multiaddr private(address: String, protoParameters: List[ProtoParameter]) {
-  override def toString: String = address
-
   /**
     * Wraps a given Multiaddr, returning the resulting joined Multiaddr.
     *
     * @return new joined Multiaddr
     */
-  def encapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = {
-    Multiaddr(address + addr.toString)
-  }
+  def encapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = Multiaddr(address + addr.address)
 
   /**
     * Decapsulate unwraps Multiaddr up until the given Multiaddr is found.
     *
     * @return decapsulated Multiaddr
     */
-  def decapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = {
-    val strAddr = addr.toString
-    val lastIndex = address.lastIndexOf(strAddr)
+  def decapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = decapsulate(addr.address)
+
+
+  def decapsulate(addr: String): Either[ErrorMessage, Multiaddr] = {
+    val lastIndex = address.lastIndexOf(addr)
     if (lastIndex < 0)
       Right(this)
     else
@@ -54,4 +52,6 @@ object Multiaddr {
   def apply(addr: String): Either[ErrorMessage, Multiaddr] = MultiaddrParser.parse(addr).map {
     case (trimmed, protoParameters) => new Multiaddr(trimmed, protoParameters)
   }
+
+  def unsafe(addr: String): Multiaddr = apply(addr).right.get
 }

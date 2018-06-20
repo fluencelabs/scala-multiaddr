@@ -42,7 +42,7 @@ private[multiaddr] object MultiaddrParser {
 
   private def parseParameter(parameter: String, protocol: Protocol): Either[String, ProtoParameter] = {
     protocol match {
-      case TCP | UDP ⇒
+      case TCP | UDP | SCTP ⇒
         Try(parameter.toInt).toEither.right
           .map(n ⇒ IntProtoParameter(protocol, n))
           .left
