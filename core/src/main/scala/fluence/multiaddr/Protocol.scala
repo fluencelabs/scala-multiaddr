@@ -61,4 +61,7 @@ object Protocol extends Enum[Protocol] {
   case object P2PWebrtcStar extends Protocol(275, 0, "p2p-webrtc-star")
   case object P2PWebrtcDirect extends Protocol(276, 0, "p2p-webrtc-direct")
   case object P2PCircuit extends Protocol(290, 0, "p2p-circuit")
+
+  //custom
+  case object GRPC extends Protocol(1001, 0, "grpc")
 }

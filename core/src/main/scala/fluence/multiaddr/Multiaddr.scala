@@ -17,16 +17,18 @@
 
 package fluence.multiaddr
 
-case class Multiaddr private(stringAddress: String, protocolsWithParameters: List[(Protocol, Option[String])]) {
-  override def toString: String = stringAddress
+import fluence.multiaddr.Multiaddr.ErrorMessage
+
+case class Multiaddr private(address: String, protoParameters: List[ProtoParameter]) {
+  override def toString: String = address
 
   /**
     * Wraps a given Multiaddr, returning the resulting joined Multiaddr.
     *
     * @return new joined Multiaddr
     */
-  def encapsulate(addr: Multiaddr): Either[Throwable, Multiaddr] = {
-    Multiaddr(stringAddress + addr.toString)
+  def encapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = {
+    Multiaddr(address + addr.toString)
   }
 
   /**
@@ -34,20 +36,22 @@ case class Multiaddr private(stringAddress: String, protocolsWithParameters: Lis
     *
     * @return decapsulated Multiaddr
     */
-  def decapsulate(addr: Multiaddr): Either[Throwable, Multiaddr] = {
+  def decapsulate(addr: Multiaddr): Either[ErrorMessage, Multiaddr] = {
     val strAddr = addr.toString
-    val lastIndex = stringAddress.lastIndexOf(strAddr)
+    val lastIndex = address.lastIndexOf(strAddr)
     if (lastIndex < 0)
-      Right(this.copy())
+      Right(this)
     else
-      Multiaddr(stringAddress.slice(0, lastIndex))
+      Multiaddr(address.slice(0, lastIndex))
   }
 
 }
 
 object Multiaddr {
 
-  def apply(addr: String): Either[Throwable, Multiaddr] = MultiaddrParser.parse(addr).map {
-    case (trimmed, protocols) => new Multiaddr(trimmed, protocols)
+  type ErrorMessage = String
+
+  def apply(addr: String): Either[ErrorMessage, Multiaddr] = MultiaddrParser.parse(addr).map {
+    case (trimmed, protoParameters) => new Multiaddr(trimmed, protoParameters)
   }
 }
