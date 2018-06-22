@@ -17,6 +17,7 @@
 
 package fluence.multiaddr
 
+import fluence.multiaddr.Multiaddr.ErrorMessage
 import org.scalatest.{Matchers, WordSpec}
 
 class MultiaddrParseSpec extends WordSpec with Matchers {
@@ -27,7 +28,7 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
     "throw exception if there is no leading '/'" in {
       val m = Multiaddr("ip4/127.0.0.1/tcp/123")
       m.isLeft shouldBe true
-      m.left.get.getMessage shouldBe "Address must be started with '/'."
+      m.left.get shouldBe "Address must be started with '/'."
     }
 
     "parse correct multiaddresses right" in {
@@ -35,59 +36,65 @@ class MultiaddrParseSpec extends WordSpec with Matchers {
       val m1Either = Multiaddr(addr1)
       m1Either.isRight shouldBe true
       val m1 = m1Either.right.get
-      m1.protocolsWithParameters shouldBe List((IP4, Some("127.0.0.1")), (TCP, Some("123")))
-      m1.stringAddress shouldBe addr1
+
+      m1.protoParameters shouldBe List(StringProtoParameter(IP4, "127.0.0.1"), IntProtoParameter(TCP, 123))
+      m1.address shouldBe addr1
 
       val addr2 = "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https"
       val m2Either = Multiaddr(addr2)
       m2Either.isRight shouldBe true
       val m2 = m2Either.right.get
-      m2.protocolsWithParameters shouldBe List((IP6, Some("2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095")), (UDP, Some("5000")), (HTTPS, None))
-      m2.stringAddress shouldBe addr2
+
+      m2.protoParameters shouldBe List(
+        StringProtoParameter(IP6, "2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095"),
+        IntProtoParameter(UDP, 5000),
+        EmptyProtoParameter(HTTPS)
+      )
+      m2.address shouldBe addr2
     }
 
     "throw exception if there is no protocol" in {
       val m = Multiaddr("/ip4/127.0.0.1/tc/123")
       m.isLeft shouldBe true
-      m.left.get.getMessage shouldBe "There is no protocol with name 'tc'."
+      m.left.get shouldBe "There is no protocol with name 'tc'."
     }
 
     "throw exception if there is no parameter in protocol with parameter" in {
       val m = Multiaddr("/ip4/127.0.0.1/tcp/")
       m.isLeft shouldBe true
-      m.left.get.getMessage shouldBe "There is no parameter for protocol with name 'tcp'."
+      m.left.get shouldBe "There is no parameter for protocol with name 'tcp'."
     }
 
     "encapsulate and decapsulate correct multiaddr" in {
       val addr1 = "/ip4/127.0.0.1/tcp/123"
-      val m1Either = Multiaddr(addr1)
-      m1Either.isRight shouldBe true
-      val m1 = m1Either.right.get
+      val m1 = Multiaddr.unsafe(addr1)
 
       val addr2 = "/ip6/2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095/udp/5000/https"
-      val m2Either = Multiaddr(addr2)
-      m2Either.isRight shouldBe true
-      val m2 = m2Either.right.get
+      val m2 = Multiaddr.unsafe(addr2)
 
       val m3Either = m1.encapsulate(m2)
       m3Either.isRight shouldBe true
       val m3 = m3Either.right.get
 
-      val result = List((IP4, Some("127.0.0.1")), (TCP, Some("123")), (IP6, Some("2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095")), (UDP, Some("5000")), (HTTPS, None))
-      m3.protocolsWithParameters shouldBe result
-      m3.stringAddress shouldBe (addr1 + addr2)
+      val result = List(
+        StringProtoParameter(IP4, "127.0.0.1"),
+        IntProtoParameter(TCP, 123),
+        StringProtoParameter(IP6, "2001:8a0:7ac5:4201:3ac9:86ff:fe31:7095"),
+        IntProtoParameter(UDP, 5000),
+        EmptyProtoParameter(HTTPS)
+      )
+      m3.protoParameters shouldBe result
+      m3.address shouldBe (addr1 + addr2)
 
-      m3.decapsulate(m2).right.get.stringAddress shouldBe addr1
+      m3.decapsulate(m2).right.get.address shouldBe addr1
     }
 
     "decapsulate correct multiaddr" in {
       val addr1 = "/ip4/127.0.0.1/udp/1234/sctp/5678"
-      val m1Either = Multiaddr(addr1)
-      m1Either.isRight shouldBe true
-      val m1 = m1Either.right.get
+      val m1 = Multiaddr.unsafe(addr1)
 
       val decapsulated = m1.decapsulate(Multiaddr("/sctp/5678").right.get).right.get
-      decapsulated.stringAddress shouldBe "/ip4/127.0.0.1/udp/1234"
+      decapsulated.address shouldBe "/ip4/127.0.0.1/udp/1234"
     }
   }
 }

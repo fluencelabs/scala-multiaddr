@@ -17,18 +17,22 @@
 
 package fluence.multiaddr
 
+import fluence.multiaddr.Multiaddr.ErrorMessage
+import fluence.multiaddr.Protocol._
+
 import scala.annotation.tailrec
+import scala.util.Try
 
 private[multiaddr] object MultiaddrParser {
 
-  def parse(addr: String): Either[Throwable, (String, List[(Protocol, Option[String])])] = {
+  def parse(addr: String): Either[ErrorMessage, (String, List[ProtoParameter])] = {
     if (!addr.startsWith("/")) {
-      Left(new IllegalArgumentException("Address must be started with '/'."))
+      Left("Address must be started with '/'.")
     } else {
       val parts = addr.stripPrefix("/").stripSuffix("/").split("/").toList
 
       if (parts.isEmpty) {
-        Left(new IllegalArgumentException("Address must be non-empty."))
+        Left("Address must be non-empty.")
       } else {
 
         parsePrepared(parts).map(protocols ⇒ (addr.stripSuffix("/"), protocols))
@@ -36,31 +40,53 @@ private[multiaddr] object MultiaddrParser {
     }
   }
 
-  private def parsePrepared(list: List[String]): Either[Throwable, List[(Protocol, Option[String])]] = {
+  private def parseParameter(parameter: String, protocol: Protocol): Either[String, ProtoParameter] = {
+    protocol match {
+      case TCP | UDP | SCTP ⇒
+        Try(parameter.toInt).toEither.right
+          .map(n ⇒ IntProtoParameter(protocol, n))
+          .left
+          .map(_ ⇒ s"Parameter for protocol $protocol must be a number.")
+      case _ ⇒
+        Right(StringProtoParameter(protocol, parameter))
+    }
+  }
+
+  private def parsePrepared(list: List[String]): Either[ErrorMessage, List[ProtoParameter]] = {
 
     @tailrec
     def parseRec(
       list: List[String],
-      res: Either[Throwable, List[(Protocol, Option[String])]]
-    ): Either[Throwable, List[(Protocol, Option[String])]] = {
+      accum: Either[ErrorMessage, List[ProtoParameter]]
+    ): Either[ErrorMessage, List[ProtoParameter]] = {
       list match {
-        case Nil ⇒ res
+        case Nil ⇒ accum
         case head :: tail ⇒
           //todo per-protocol validation
           val protocolOp = Protocol.withNameOption(head)
 
           protocolOp match {
             case None ⇒
-              Left(new IllegalArgumentException(s"There is no protocol with name '$head'."))
+              Left(s"There is no protocol with name '$head'.")
             case Some(protocol) ⇒
               protocol.size match {
-                case 0 ⇒ parseRec(tail, res.map(els ⇒ els :+ (protocol, None)))
+                case 0 ⇒
+                  parseRec(tail, accum.map(els ⇒ els :+ EmptyProtoParameter(protocol)))
                 case _ ⇒
                   tail match {
                     case Nil ⇒
-                      Left(new IllegalArgumentException(s"There is no parameter for protocol with name '$head'."))
-                    case innerHead :: innerTail ⇒
-                      parseRec(innerTail, res.map(els ⇒ els :+ (protocol, Some(innerHead))))
+                      Left(s"There is no parameter for protocol with name '$head'.")
+                    case parameter :: innerTail ⇒
+                      val partialResult =
+                        for {
+                          elements ← accum
+                          parameter ← parseParameter(parameter, protocol)
+                        } yield elements :+ parameter
+
+                      parseRec(
+                        innerTail,
+                        partialResult
+                      )
                   }
               }
           }
